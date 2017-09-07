@@ -18,11 +18,9 @@ def progwait(fs, desc="", notebook=False):
     fs_notdones = fs
 
     if notebook:
-        import tqdm.tqdm_notebook
-        tqdm_func = tqdm.tqdm_notebook
+        from tqdm import tqdm_notebook as tqdm_func
     else:
-        from tqdm import tqdm
-        tqdm_func = tqdm
+        from tqdm import tqdm as tqdm_func
 
     with tqdm_func(total=N, desc=desc) as pbar:
         while len(fs_dones) < N:

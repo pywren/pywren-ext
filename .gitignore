@@ -4,3 +4,7 @@ dist/
 pywren.egg-info
 .idea/
 *.iml
+*/.ipynb_checkpoints/
+.ipynb_checkpoints/
+pywren_ext.egg-info/
+
