@@ -1,14 +1,17 @@
 import pandas as pd
+import numpy as np
 
 
-def job_df_from_futures(futures):
+def job_df_from_futures(futures=None, invoke_statuses=None, run_statuses=None):
     """
     Extract all of the runtime info from a list of futures into
     a single pandas dataframe
     """
 
-    invoke_statuses = [f.invoke_status for f in futures]
-    run_statuses = [f.run_status for f in futures]
+    if invoke_statuses is None:
+        invoke_statuses = [f.invoke_status for f in futures]
+    if run_statuses is None:
+        run_statuses = [f.run_status for f in futures]
 
     invoke_df = pd.DataFrame(invoke_statuses)
     run_df = pd.DataFrame(run_statuses)
