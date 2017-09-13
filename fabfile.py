@@ -23,7 +23,7 @@ def deploy():
 
         # # copy the notebooks from remote to local
 
-        # project.rsync_project("/data/jonas/pywren/", local_dir="./",
-        #                       extra_opts="--include '*.ipynb' --include '*.pdf' --include '*.png'  --include='*/' --exclude='*' ", 
-        #                       upload=False)
+        project.rsync_project("/data/jonas/pywren-ext/", local_dir="./",
+                              extra_opts="--include '*.ipynb' --include '*.pdf' --include '*.png'  --include='*/' --exclude='*' ", 
+                              upload=False)
         
