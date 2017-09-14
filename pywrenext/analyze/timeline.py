@@ -5,7 +5,7 @@ import matplotlib.patches as mpatches
 from matplotlib import pylab
 import seaborn as sns
 
-import util
+from pywrenext.analyze import util
 
 def plot_jobs(normalized_times_df, point_size=4, plot_step=100,
               ax=None):

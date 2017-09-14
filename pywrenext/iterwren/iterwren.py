@@ -1,10 +1,12 @@
-import threading
+#import threading
 import logging
 from six.moves import queue
 import numpy as np
 import pywren
 import time
 
+
+EXCLUDE_MODULES=['tqdm']
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ class IterExec(object):
         self.wrapped_funcs = {}  # Hack
         
     def __enter__(self):
-        logging.debug("entered IterExec")
+        logger.debug("entered IterExec")
         #self.thread = threading.Thread(target=self._run_loop)
         #self.thread.start()
         return self
@@ -80,7 +82,7 @@ class IterExec(object):
         
         self.wrapped_funcs[current_map_id] = iter_wrapper(func)
         logger.debug("map_id={} invoking initial map with {} args".format(current_map_id, len(wrapped_args)))
-        pywren_futures = self.wrenexec.map(self.wrapped_funcs[current_map_id], wrapped_args)
+        pywren_futures = self.wrenexec.map(self.wrapped_funcs[current_map_id], wrapped_args, exclude_modules=EXCLUDE_MODULES)
         logger.debug("map_id={} invocation done".format(current_map_id))
         iter_futures = []
         for a_i, (a, f) in enumerate(zip(args, pywren_futures)):
@@ -143,7 +145,8 @@ class IterExec(object):
                 wrapped_func = self.wrapped_funcs[map_id]
                 logger.debug("map_id={} invoking new map with {} args".format(map_id, len(wrapped_args)))
                 pywren_futures = self.wrenexec.map(wrapped_func, 
-                                                  wrapped_args)
+                                                   wrapped_args, 
+                                                   exclude_modules=EXCLUDE_MODULES)
                 logger.debug("map_id{} done with new invoke".format(map_id))
                 for f, pwf in zip(to_advance, pywren_futures):
                     if f.save_iters:
