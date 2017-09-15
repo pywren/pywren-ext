@@ -15,6 +15,9 @@ better for someone to get an import error upon trying to import it.
 ### Organization:
 If you're just creating something simple (such as `progwait.py`)
 feel free to keep it at the top level. Otherwise create
-a subdirectory. Additionally put tests in `tests` and examples 
-(including ipython notebooks!) in `notebooks`
+a subdirectory. 
+
+* `tests/myext` for tests (pytest/unittest)
+* `examples/myext` for examples (including ipython notebooks and assoc code)
+
    
