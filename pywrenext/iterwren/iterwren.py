@@ -46,6 +46,13 @@ def get_map_pos(futures):
 
 
 class IterExec(object):
+    """
+    The IterExec has a map() simnilar to regular pywren which 
+    returns a list of iter futures. 
+
+    each invocation of `map` creates a map_id which tracks
+    the associated futures
+    """
 
 
     def __init__(self, wrenexec):
@@ -146,32 +153,33 @@ class IterExec(object):
                 wrapped_args = [(f.current_iter + 1,
                                  f.current_future.result(),
                                  f.arg) for f in to_advance ]
-                # FIXME don't take this from func 0
+
                 wrapped_func = self.wrapped_funcs[map_id]
                 logger.debug("map_id={} invoking new map with {} args".format(map_id, len(wrapped_args)))
                 pywren_futures = self.wrenexec.map(wrapped_func,
                                                    wrapped_args,
                                                    exclude_modules=EXCLUDE_MODULES)
-                logger.debug("map_id={} done with new invoke".format(map_id))
+                logger.debug("map_id={} invoking new map done".format(map_id))
                 for f, pwf in zip(to_advance, pywren_futures):
                     if f.save_iters:
                         f.iter_hist.append(f.current_future)
                     f.current_future = pwf
                     f.current_iter += 1
 
-                new_map_id = self.next_map_id
+                #new_map_id = self.next_map_id
 
-                self.active_iters[new_map_id] = to_advance
-                self.wrapped_funcs[new_map_id] = wrapped_func
-                self.next_map_id += 1
+                #self.active_iters[new_map_id] = to_advance
+                #self.wrapped_funcs[new_map_id] = wrapped_func
+                #self.next_map_id += 1
 
             # remove these from current map id
-            original_map_pos_filter = [f.original_map_pos for f in (to_advance + to_remove)]
+            to_remove_map_pos = [f.original_map_pos for f in to_remove]
             self.active_iters[map_id] = [f for f in self.active_iters[map_id] if f.original_map_pos \
-                                         not in original_map_pos_filter]
+                                         not in to_remove_map_pos]
             if len(self.active_iters[map_id]) == 0:
                 logger.debug("map_id={} deleted".format(map_id))
                 del self.active_iters[map_id]
+                del self.wrapped_funcs[map_id]
         logger.info("ppc={} end process pending".format(self._process_pending_count))
         self._process_pending_count += 1
 

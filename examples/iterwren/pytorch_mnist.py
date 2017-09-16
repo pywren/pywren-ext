@@ -160,19 +160,22 @@ config['runtime']['s3_key'] = 'pywren.runtimes/deep_cpu_3.6.meta.json'
 sdblog = pywrenext.sdblogger.SDBLogger('jonas-cnn-log')
 print("SDB LOG IS", sdblog)
 
+NUM_EPOCHS = 20
 
-with pywren.invokers.LocalInvoker("/tmp/task") as iv:
+#with pywren.invokers.LocalInvoker("/tmp/task") as iv:
 
-    wrenexec = pywren.local_executor(iv, config=config)
+#    wrenexec = pywren.local_executor(iv, config=config)
 
+config = pywren.wrenconfig.load("pywrenconfig_gpu.yaml")
+wrenexec = pytorch.standalone_executor(config=config)
 
     with pywrenext.iterwren.IterExec(wrenexec) as IE:
 
-        iter_futures = IE.map(pt_iter, 10, [{'learning_rate' : 0.01, 
-                                            'opt_momentum' : 0.5, 
-                                            'sdblog' : sdblog}], 
+        iter_futures = IE.map(pt_iter, NUM_EPOCHS, [{'learning_rate' : 0.01, 
+                                                     'opt_momentum' : 0.5, 
+                                                     'sdblog' : sdblog}], 
                               save_iters=True)
-        iterwren.wait_exec(IE)
+        pywrenext.iterwren.wait_exec(IE)
 
 print(iter_futures[0].current_future)
 

@@ -5,7 +5,7 @@ import logging
 import threading
 import pywrenext.iterwren
 import pickle
-
+import os
 
 
 
@@ -40,16 +40,25 @@ def constant_t():
 
 def random_delay():
 
-    daiquiri.setup() # level=logging.INFO)
-    #dep_log = logging.getLogger('multyvac.dependency-analyzer')
-    #dep_log.setLevel('DEBUG')
+    TOTAL_ITER = 5
+    JOB_N = 100
+
+    LOG_FILENAME = "benchmark_futures_data.{}.{}.log".format(TOTAL_ITER, JOB_N)
+
+    try:
+        os.remove(LOG_FILENAME)
+    except OSError:
+        pass
+    daiquiri.setup( outputs=[daiquiri.output.File(LOG_FILENAME)])
+
     iw = logging.getLogger('pywrenext.iterwren.iterwren')
     iw.setLevel('DEBUG')
+
     t1 = time.time()
 
 
     def offset_counter(k, x_k, offset):
-        time.sleep(np.random.randint(10, 40))
+        time.sleep(np.random.randint(10, 30))
         if k == 0:
             return offset
         else:
@@ -57,10 +66,10 @@ def random_delay():
 
     wrenexec = pywren.default_executor()
 
-    TOTAL_ITER = 3
+
     with pywrenext.iterwren.IterExec(wrenexec) as IE:
 
-        iter_futures = IE.map(offset_counter, TOTAL_ITER, range(100), 
+        iter_futures = IE.map(offset_counter, TOTAL_ITER, range(JOB_N), 
                               save_iters=True)
         pywrenext.iterwren.wait_exec(IE)
 
@@ -70,7 +79,6 @@ def random_delay():
                  'TOTAL_ITER' : TOTAL_ITER, 
                  'time' : t2-t1}, 
                 open("benchmark_futures_data.{}.random.pickle".format(TOTAL_ITER), 'wb'), -1)
-    print("results dumped")
     
 
 
