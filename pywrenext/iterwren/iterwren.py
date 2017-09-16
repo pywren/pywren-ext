@@ -132,16 +132,15 @@ class IterExec(object):
             to_advance = []
             to_remove = []
             still_waiting = []
-
+            logger.debug("map_oid={} wait done for all f in map_id".format(map_id))
             for f in iter_futures:
                 pwf = f.current_future
                 if f.current_iter == f.max_iter:
                     to_remove.append(f)
                 else:
                     pwf_done = pwf.done()
-                    if pwf_done: # fixme handle error!
+                    if pwf_done: 
                         r = pwf.result(throw_except=False) #
-                        print("The state is", pwf._state, pwf_done, r)
                         if pwf.succeeded():
                             to_advance.append(f)
                         elif pwf.errored():
