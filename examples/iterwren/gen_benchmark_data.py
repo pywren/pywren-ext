@@ -47,6 +47,7 @@ def random_delay():
     iw.setLevel('DEBUG')
     t1 = time.time()
 
+
     def offset_counter(k, x_k, offset):
         time.sleep(np.random.randint(10, 40))
         if k == 0:
@@ -56,7 +57,7 @@ def random_delay():
 
     wrenexec = pywren.default_executor()
 
-    TOTAL_ITER = 2
+    TOTAL_ITER = 3
     with pywrenext.iterwren.IterExec(wrenexec) as IE:
 
         iter_futures = IE.map(offset_counter, TOTAL_ITER, range(100), 

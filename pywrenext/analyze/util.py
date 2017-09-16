@@ -25,7 +25,7 @@ DEFAULT_FIELDS = ['host submit',
                   'job done',
                   'results returned']
 
-def normalize_times(results_df):
+def normalize_times(results_df, return_time_offset = False):
     """
     Normalize the times of a collection of job results, and return the 
     resulting dataframe
@@ -39,4 +39,8 @@ def normalize_times(results_df):
               'job done' : results_df.end_time - time_offset, 
               'results returned': results_df.download_output_timestamp - time_offset
            }
-    return pd.DataFrame(data)
+
+    df = pd.DataFrame(data)
+    if return_time_offset:
+        return df, time_offset
+    return df

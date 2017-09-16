@@ -50,33 +50,18 @@ class IterExec(object):
 
     def __init__(self, wrenexec):
         self.wrenexec = wrenexec
-        #self.thread = None
-        #self.queue = queue.Queue()
-        #self.stop = False
 
         self.next_map_id = 0
         self.active_iters = {}
         self.wrapped_funcs = {}  # Hack
+
+        self._process_pending_count = 0
 
     def __enter__(self):
         logger.debug("entered IterExec")
         #self.thread = threading.Thread(target=self._run_loop)
         #self.thread.start()
         return self
-
-    # def _run_loop(self):
-    #     BLOCK_SEC_MAX = 2
-    #     while not self.stop:
-    #         try:
-    #             res = self.queue.get(True, BLOCK_SEC_MAX)
-    #             func, iters, args = res
-    #             print("got a thing", str(func))
-
-    #             f = self.wrenexec.call_async(iter_wrapper, (func, 0, args))
-    #             self.queue.task_done()
-
-    #         except queue.Empty:
-    #             pass
 
     def call_async(self, func, iters, arg):
         return self.map(func, iters, [arg])
@@ -110,8 +95,9 @@ class IterExec(object):
         return iter_futures
 
     def process_pending(self):
-        logger.debug("process pending")
         active_map_ids = list(self.active_iters.keys())
+        logger.info("ppc={} begin process pending len_active_map_ids={}".format(self._process_pending_count, len(active_map_ids)))
+
         for map_id in active_map_ids:
             logger.debug("processing map_id={} {}".format(map_id, len(self.active_iters[map_id])))
             # get a future set
@@ -123,30 +109,31 @@ class IterExec(object):
                 if pwf.callset_id not in f_by_callset_id:
                     f_by_callset_id[pwf.callset_id] = []
                 f_by_callset_id[pwf.callset_id].append(pwf)
+
+            ## call WAIT on everyone 
+            logger.debug("map_id={} starting status check".format(map_id))
             for cs, flist in f_by_callset_id.items():
-                logger.debug("map_id={} calling wait for callset_id = {}".format(map_id,cs))
+                logger.debug("map_id={} calling wait for callset_id={} len_futures={}".format(map_id,cs, len(flist)))
 
                 # this will trigger an update on all of them
-                fs_done, fs_notdone = pywren.wait(flist, return_when=pywren.ANY_COMPLETED)
+                fs_done, fs_notdone = pywren.wait(flist, return_when=pywren.ALWAYS, # ANY_COMPLETED, 
+                                                  WAIT_DUR_SEC=1)
+                logger.debug("map_id={} wait done for callset_id={} len_fs_done={}".format(map_id,cs, len(fs_done)))
+
+            logger.debug("map_id={} status check done for all f in map_id".format(map_id))
 
             to_advance = []
             to_remove = []
             still_waiting = []
-            logger.debug("map_oid={} wait done for all f in map_id".format(map_id))
             for f in iter_futures:
                 pwf = f.current_future
                 if f.current_iter == f.max_iter:
                     to_remove.append(f)
                 else:
-                    pwf_done = pwf.done()
-                    if pwf_done: 
-                        r = pwf.result(throw_except=False) #
-                        if pwf.succeeded():
-                            to_advance.append(f)
-                        elif pwf.errored():
-                            to_remove.append(f)
-                        else:
-                            raise Exception("How did we get here")
+                    if pwf.succeeded():
+                        to_advance.append(f)
+                    elif pwf.errored():
+                        to_remove.append(f)
                     else:
                         still_waiting.append(f)
             logger.debug("map_id={} to_advance={}".format(map_id, get_map_pos(to_advance)))
@@ -165,7 +152,7 @@ class IterExec(object):
                 pywren_futures = self.wrenexec.map(wrapped_func,
                                                    wrapped_args,
                                                    exclude_modules=EXCLUDE_MODULES)
-                logger.debug("map_id{} done with new invoke".format(map_id))
+                logger.debug("map_id={} done with new invoke".format(map_id))
                 for f, pwf in zip(to_advance, pywren_futures):
                     if f.save_iters:
                         f.iter_hist.append(f.current_future)
@@ -183,8 +170,10 @@ class IterExec(object):
             self.active_iters[map_id] = [f for f in self.active_iters[map_id] if f.original_map_pos \
                                          not in original_map_pos_filter]
             if len(self.active_iters[map_id]) == 0:
-                logger.debug("deleting map_id={}".format(map_id))
+                logger.debug("map_id={} deleted".format(map_id))
                 del self.active_iters[map_id]
+        logger.info("ppc={} end process pending".format(self._process_pending_count))
+        self._process_pending_count += 1
 
     def alldone(self):
         return len(self.active_iters) == 0

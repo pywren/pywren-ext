@@ -156,20 +156,23 @@ config = pywren.wrenconfig.default()
 config['runtime']['s3_bucket'] = 'pywren-public-us-west-2'
 config['runtime']['s3_key'] = 'pywren.runtimes/deep_cpu_3.6.meta.json'
 
-wrenexec = pywren.local_executor(config=config)
 
 sdblog = pywrenext.sdblogger.SDBLogger('jonas-cnn-log')
 print("SDB LOG IS", sdblog)
 
-with pywrenext.iterwren.IterExec(wrenexec) as IE:
-    
-    iter_futures = IE.map(pt_iter, 10, [{'learning_rate' : 0.01, 
-                                        'opt_momentum' : 0.5, 
-                                        'sdblog' : sdblog}], 
-                          save_iters=True)
-    iterwren.wait_exec(IE)
 
-wrenexec.invoker.quit()
+with pywren.invokers.LocalInvoker("/tmp/task") as iv:
+
+    wrenexec = pywren.local_executor(iv, config=config)
+
+
+    with pywrenext.iterwren.IterExec(wrenexec) as IE:
+
+        iter_futures = IE.map(pt_iter, 10, [{'learning_rate' : 0.01, 
+                                            'opt_momentum' : 0.5, 
+                                            'sdblog' : sdblog}], 
+                              save_iters=True)
+        iterwren.wait_exec(IE)
 
 print(iter_futures[0].current_future)
 
@@ -180,3 +183,4 @@ for f in iter_futures_hist[0]:
 pickle.dump({'iter_futures_hist' : iter_futures_hist}, 
             open("runlog.pickle", 'wb'), -1)
 print("results dumped")
+
