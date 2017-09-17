@@ -10,26 +10,23 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
-
+import os
 
 import pickle
 
 import daiquiri
  
-daiquiri.setup() # level=logging.INFO)
-#dep_log = logging.getLogger('multyvac.dependency-analyzer')
-#dep_log.setLevel('DEBUG')
-#iw = logging.getLogger('pywrenext.iterwren.iterwren')
-#iw.setLevel('DEBUG')
+LOG_FILENAME = "pytorch_mnist.iterwren.log"
+try:
+    os.remove(LOG_FILENAME)
+except OSError:
+    pass
 
-#local_wrenexec = pywren.local_executor()
 
-# with pywrenext.iterwren.IterExec(local_wrenexec) as IE:
+daiquiri.setup( outputs=[daiquiri.output.File(LOG_FILENAME)])
 
-#     def foo(x):
-#         return x + 1
-#     f = local_wrenexec.map(foo, [1.0])[0]
-#     f.result()
+iw = logging.getLogger('pywrenext.iterwren.iterwren')
+iw.setLevel('DEBUG')
 
 
 class Net(nn.Module):
@@ -52,21 +49,25 @@ class Net(nn.Module):
 
 
 
-USE_CUDA = False
 BATCH_SIZE = 32
 
 def ser(model, optimizer):
-    model_state = model.state_dict()
+    model_state = model.cpu().state_dict()
     optimizer_state = optimizer.state_dict()
-    return {'model_state' :  model_state, 
-            'optimizer_state' : optimizer_state}
+    return pickle.dumps({'model_state' :  model_state, 
+                         'optimizer_state' : optimizer_state}, -1)
+
+def deser(s):
+    return pickle.loads(s)
 
 def pt_iter(k, x_k, args):
 
     import torch
 
+    timelog = {}
+    timelog['start_iter'] = time.time()
     sdblog = args['sdblog']
-
+    USE_CUDA = args['use_gpu']
     kwargs = {'num_workers': 1, 'pin_memory': True} if USE_CUDA else {}
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('/tmp/data', train=True, download=True,
@@ -83,7 +84,6 @@ def pt_iter(k, x_k, args):
         batch_size=BATCH_SIZE, shuffle=True, **kwargs)
 
 
-
     USE_SDB_LOGGER = True
     # generic setup
     model = Net()
@@ -95,11 +95,18 @@ def pt_iter(k, x_k, args):
 
     # just return initial state
     if k == 0:
-        return ser(model, optimizer)
+        return {'model_state' : ser(model, optimizer)}
+
+    if USE_CUDA:
+        model = model.cuda()
+
+    x_k = deser(x_k['model_state']) # convert from string back to dict
 
     model.load_state_dict(x_k['model_state'])
     if k > 1:
         optimizer.load_state_dict(x_k['optimizer_state'])
+
+    timelog['setup_complete'] = time.time()
 
     # do a train epoch
 
@@ -114,14 +121,14 @@ def pt_iter(k, x_k, args):
             loss = F.nll_loss(output, target)
             loss.backward()
             optimizer.step()
-            if batch_idx % 10 == 0:
+            if batch_idx % 100 == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch, batch_idx * len(data), len(train_loader.dataset),
                     100. * batch_idx / len(train_loader), loss.data[0]))
-                sdblog(loss=loss.data[0],
-                       batch_idx=batch_idx,
-                       epoch=epoch, 
-                       field='epoch_loss')
+                # sdblog(loss=loss.data[0],
+                #        batch_idx=batch_idx,
+                #        epoch=epoch, 
+                #        field='epoch_loss')
 
 
     def test():
@@ -143,47 +150,58 @@ def pt_iter(k, x_k, args):
             test_loss, correct, len(test_loader.dataset),accuracy))
         return accuracy
 
-    train(k)
-    test_accuracy = test()
-    sdblog(k=k, test_accuracy=test_accuracy, field='test_loss')
 
-    state = ser(model, optimizer)
-    state['test_accuracy'] = test_accuracy
+    train(k)
+    timelog['train_epoch_complete'] = time.time()
+    test_accuracy = test()
+    timelog['test_complete'] = time.time()
+    sdblog(k=k, test_accuracy=test_accuracy, field='test_loss', 
+           arg_i = args['arg_i'])
+    
+    model_state = ser(model, optimizer)
+    timelog['ser_complete'] = time.time()
+    state = {'model_state' : model_state, 
+             'test_accuracy' : test_accuracy, 
+             'timelog' : timelog}
 
     return state
 
 config = pywren.wrenconfig.default()
 config['runtime']['s3_bucket'] = 'pywren-public-us-west-2'
-config['runtime']['s3_key'] = 'pywren.runtimes/deep_cpu_3.6.meta.json'
+config['runtime']['s3_key'] = 'pywren.runtimes/deep_gpu_3.6.meta.json'
 
 
 sdblog = pywrenext.sdblogger.SDBLogger('jonas-cnn-log')
 print("SDB LOG IS", sdblog)
 
-NUM_EPOCHS = 20
-
-#with pywren.invokers.LocalInvoker("/tmp/task") as iv:
-
-#    wrenexec = pywren.local_executor(iv, config=config)
+NUM_EPOCHS = 10
 
 config = pywren.wrenconfig.load("pywrenconfig_gpu.yaml")
-wrenexec = pytorch.standalone_executor(config=config)
+wrenexec = pywren.standalone_executor(config=config)
 
-    with pywrenext.iterwren.IterExec(wrenexec) as IE:
+args = [{'learning_rate' : 0.01, 
+         'opt_momentum' : 0.5, 
+         'sdblog' : sdblog, 
+         'use_gpu' : ug, 
+         'arg_i' : i } for i, ug in enumerate([False, True, False, True])]
 
-        iter_futures = IE.map(pt_iter, NUM_EPOCHS, [{'learning_rate' : 0.01, 
-                                                     'opt_momentum' : 0.5, 
-                                                     'sdblog' : sdblog}], 
-                              save_iters=True)
-        pywrenext.iterwren.wait_exec(IE)
+with pywrenext.iterwren.IterExec(wrenexec) as IE:
+
+    iter_futures = IE.map(pt_iter, NUM_EPOCHS, args, 
+                          save_iters=True)
+    pywrenext.iterwren.wait_exec(IE)
 
 print(iter_futures[0].current_future)
 
 iter_futures_hist = [f.iter_hist for f in iter_futures]
+current_futures = [f.current_future for f in iter_futures]
+
 for f in iter_futures_hist[0]:
     print(f.result().get('test_accuracy', 0))
 
-pickle.dump({'iter_futures_hist' : iter_futures_hist}, 
-            open("runlog.pickle", 'wb'), -1)
+pickle.dump({'iter_futures_hist' : iter_futures_hist, 
+             'current_futures' : current_futures, 
+             'args' : args}, 
+            open("pytorch_mnist.pickle", 'wb'), -1)
 print("results dumped")
 

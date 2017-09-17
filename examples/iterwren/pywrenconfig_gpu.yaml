@@ -9,12 +9,12 @@ lambda:
     function_name : pywren_1
     
 s3:
-    bucket: jonas-pywren-604
+    bucket: jonas-us-west-2
     pywren_prefix: pywren.jobs
 
 runtime:
     s3_bucket:  pywren-public-us-west-2
-    s3_key: pywren.runtimes/deep_cpu_3.6.meta.json
+    s3_key: pywren.runtimes/deep_gpu_3.6.meta.json
 
 standalone:
     ec2_instance_type: p2.xlarge

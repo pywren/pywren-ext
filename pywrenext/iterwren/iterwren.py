@@ -6,6 +6,17 @@ import pywren
 import time
 import enum
 
+class IterationDone(Exception):
+    """
+    Raise this for variable-run iterations when done. 
+    Conceptually similar to built-in StopIteration but:
+    1. wanted something distinct so we have more control
+    2. wanted a name that signaled this was "successful" done
+
+    """
+
+    pass
+
 class IterFutureState(enum.Enum):
     new = 0
     running = 1
@@ -140,6 +151,9 @@ class IterExec(object):
                     if pwf.succeeded():
                         to_advance.append(f)
                     elif pwf.errored():
+                        logger.debug("map_id={} map_pos={} errored on iter {}".format(map_id, 
+                                                                                      f.original_map_pos, 
+                                                                                      f.current_iter))
                         to_remove.append(f)
                     else:
                         still_waiting.append(f)
@@ -166,11 +180,6 @@ class IterExec(object):
                     f.current_future = pwf
                     f.current_iter += 1
 
-                #new_map_id = self.next_map_id
-
-                #self.active_iters[new_map_id] = to_advance
-                #self.wrapped_funcs[new_map_id] = wrapped_func
-                #self.next_map_id += 1
 
             # remove these from current map id
             to_remove_map_pos = [f.original_map_pos for f in to_remove]
