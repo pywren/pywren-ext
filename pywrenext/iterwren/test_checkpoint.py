@@ -3,6 +3,7 @@ import numpy as np
 from pywrenext.iterwren import s3checkpoint
 
 from pywrenext.iterwren import checkpoint
+import pywrenext.iterwren
 import pywren
 
 def test_checkpoint():
@@ -57,9 +58,60 @@ def test_checkpoint_iterwren():
 
         with pywrenext.iterwren.IterExec(wrenexec) as IE:
 
-            iter_futures = IE.map(wrapped_func, 5, range(4))
+            iter_futures = IE.map(wrapped_func, 5, [{'val' : i} for i in range(5)])
 
             pywrenext.iterwren.wait_exec(IE)
 
-        final_results = [f.result() for f in iter_futures]
+        final_results_urls = [f.result() for f in iter_futures]
+        final_results = [s3checkpoint.load_checkpoint_url(u) \
+                         for u in final_results_urls]
+        print(final_results)
+
+    with pywren.invokers.LocalInvoker("/tmp/task") as iv:
+
+        wrenexec = pywren.local_executor(iv)
+
+        with pywrenext.iterwren.IterExec(wrenexec) as IE:
+
+            iter_futures = IE.map(wrapped_func, 5, [{'val' : i} for i in range(5)])
+
+            pywrenext.iterwren.wait_exec(IE)
+
+        final_results_urls = [f.result() for f in iter_futures]
+        final_results = [s3checkpoint.load_checkpoint_url(u) \
+                         for u in final_results_urls]
+        print(final_results)
+
+
+def test_checkpoint_iterwren_stopiter():
+    rand_base = np.random.randint(1000000)
+
+    s3_base = "s3://jonas-pywren-132/foo/{}/baz".format(rand_base)
+
+    def increment(k, x_k, args):
+        if k == 0:
+            return args['val']
+        else:
+            return x_k + 1
     
+    TOTAL_ITERS = 3
+    wrapped_func = checkpoint.checkpoint_wrapper(increment, 
+                                                 s3_base, TOTAL_ITERS)
+    
+    
+    with pywren.invokers.LocalInvoker("/tmp/task") as iv:
+
+        wrenexec = pywren.local_executor(iv)
+
+        with pywrenext.iterwren.IterExec(wrenexec) as IE:
+
+            iter_futures = IE.map(wrapped_func, 5, [{'val' : i} for i in range(5)])
+
+            pywrenext.iterwren.wait_exec(IE)
+
+
+        #final_results_urls = [f.result() for f in iter_futures]
+        #final_results = [s3checkpoint.load_checkpoint_url(u) \
+        #                 for u in final_results_urls]
+        #print(final_results)
+

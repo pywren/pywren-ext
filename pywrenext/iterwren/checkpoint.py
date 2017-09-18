@@ -38,7 +38,7 @@ def checkpoint_wrapper(f, checkpoint_root, max_attempt_iter):
                                                           checkpoint_k)
         
 
-        if checkpoint_k >= max_attempt_iter:
+        if checkpoint_k > max_attempt_iter:
             raise iterwren.IterationDone()
         else:
             k_next = checkpoint_k + 1
