@@ -6,7 +6,7 @@ import pickle
 import hashlib
 import zlib
 import boto3
-
+import copy
 from pywrenext.iterwren import s3checkpoint
 
 def crc32_hex_pickle(x):
@@ -14,14 +14,26 @@ def crc32_hex_pickle(x):
     data_bin = struct.pack('!I', zlib.crc32(data_str))
     return binascii.hexlify(data_bin)
 
-def checkpoint_wrapper(f, checkpoint_root, max_attempt_iter):
+def dict_key_filter(d, prefix="_"):
+    return {k : v for k, v in d.items() if not k.startswith(prefix)}
+
+
+def checkpoint_wrapper(f, checkpoint_root, max_attempt_iter, 
+                       extra_args = None):
     """
-    returns a function conforming to the iterator interface
+    returns a function conforming to the iterator interface. 
+    Note that args is assumed to be a dict, and is hashed
+    to get the unique idea
+
+    extra_args are added to the 
+    Note that this assumes that args is a dict and we can add
+    extra args to it. 
+
     """
     def iter_func(k, x_k, arg):
         # get the latest checkpoint
-        
-        default_checkpoint_name = crc32_hex_pickle(arg).decode('ascii')
+        filtered_arg = dict_key_filter(arg, prefix="_")
+        default_checkpoint_name = crc32_hex_pickle(filtered_arg).decode('ascii')
 
         checkpoint_name = arg.get('checkpoint_name', 
                                   default_checkpoint_name)
@@ -38,6 +50,12 @@ def checkpoint_wrapper(f, checkpoint_root, max_attempt_iter):
                                                           checkpoint_k)
         
 
+        # custom args 
+        arg = copy.deepcopy(arg)
+        if extra_args is not None:
+            arg.update(extra_args)
+        arg['_checkpoint_path'] = checkpoint_path
+        
         if checkpoint_k > max_attempt_iter:
             raise iterwren.IterationDone()
         else:

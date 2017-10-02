@@ -71,7 +71,7 @@ class SDBLogger(object):
         out_attrs = self.always_fields.copy()
         if dictval is not None:
             if isinstance(dictval, dict):
-                out_attrs.update(args)
+                out_attrs.update(dictval)
             else:
                 raise ValueError("dictval is not a dictionary")
         out_attrs.update(kwargs)

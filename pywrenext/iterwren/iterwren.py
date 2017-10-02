@@ -202,7 +202,11 @@ class IterExec(object):
 
 IE_WAIT_SLEEP = 1.0
 
-def wait_exec(IE):
+def wait_exec(IE, callback=None):
+    wait_num = 0 
     while not IE.alldone():
         IE.process_pending()
         time.sleep(IE_WAIT_SLEEP)
+        wait_num += 1
+        if callback is not None:
+            callback(wait_num)
